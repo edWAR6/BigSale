@@ -1,11 +1,15 @@
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import React, { useEffect, useState } from 'react';
+import { Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
 
 import api from '../api';
 import { formatPrice } from '../utils';
 
 export default DealDetail = ({deal, onBack}) => {
   const [ dealDetail, setDealDetail ] = useState(deal);
+  const [ imageIndex, setImageIndex ] = useState(0);
+
+  const imageXPos = new Animated.Value(0);
+  const width = Dimensions.get('window').width;
 
   useEffect(() => {
     (async() => {
@@ -14,12 +18,56 @@ export default DealDetail = ({deal, onBack}) => {
     })();
   }, []);
 
+  useEffect(() => {
+    console.log('centering');
+    Animated.spring(imageXPos, {
+      toValue: 0,
+      useNativeDriver: false,
+    }).start();
+  }, [imageIndex]);
+
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderMove: (e, state) => {
+      imageXPos.setValue(state.dx);
+    },
+    onPanResponderRelease: (e, state) => {
+      if (Math.abs(state.dx) > width * 0.4) {
+        const direction = Math.sign(state.dx);
+        Animated.timing(imageXPos, {
+          toValue: direction * width,
+          duration: 250,
+          useNativeDriver: false,
+        }).start(() => {
+          if (Object.values(dealDetail.media)[imageIndex + direction * -1]) {
+            setImageIndex(() => imageIndex + direction * -1);
+            imageXPos.setValue(width * direction * -1);
+          } else {
+            Animated.spring(imageXPos, {
+              toValue: 0,
+              useNativeDriver: false,
+            }).start();
+          }
+        });
+      } else {
+        Animated.spring(imageXPos, {
+          toValue: 0,
+          useNativeDriver: false,
+        }).start();
+      }
+    },
+  });
+
   return (
     <View style={styles.deal}>
       <TouchableOpacity onPress={onBack}>
         <Text style={styles.back}>Back</Text>
       </TouchableOpacity>
-      <Image style={styles.image} source={{ uri: Object.values(dealDetail.media)[0] }} />
+      <Animated.Image
+        style={[{ left: imageXPos }, styles.image]}
+        source={{ uri: Object.values(dealDetail.media)[imageIndex] }}
+        { ...panResponder.panHandlers }
+      />
       <View style={styles.detail}>
         <View>
           <Text style={styles.title}>{dealDetail.title}</Text>
@@ -47,8 +95,6 @@ export default DealDetail = ({deal, onBack}) => {
 
 const styles = StyleSheet.create({
   deal: {
-    marginHorizontal: 12,
-    marginTop: 50,
   },
   image: {
     width: '100%',
@@ -56,8 +102,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ccc',
   },
   detail: {
-    borderColor: '#bbb',
-    borderWidth: 1,
   },
   title: {
     fontSize: 16,
@@ -98,5 +142,6 @@ const styles = StyleSheet.create({
   back: {
     marginBottom: 5,
     color: '#22f',
+    marginLeft: 10,
   },
 });
